@@ -32,12 +32,9 @@ namespace DotNetCoreSqlDb
                 options.CheckConsentNeeded = context => true;
                 options.MinimumSameSitePolicy = SameSiteMode.None;
             });
-
-
+            
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-
-
-           
+                                  
             services.AddDbContext<MyDatabaseContext>(options =>
              options.UseSqlServer(Configuration.GetConnectionString("MyDbConnection")));
             //options.UseSqlite("Data Source=localdatabase.db"));
