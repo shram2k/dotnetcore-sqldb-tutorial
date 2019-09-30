@@ -18,6 +18,8 @@ namespace DotNetCoreSqlDb.Models
         [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}", ApplyFormatInEditMode = true)]
         public DateTime CreatedDate { get; set; }
 
+        public string UploadedImageId { get; set; }
+
     }
 
 
@@ -34,6 +36,21 @@ namespace DotNetCoreSqlDb.Models
         [Required]
         [Display(Name = "Upload Pic")]
         public IFormFile UploadPic { get; set; }
+    }
+
+
+    public class TodoViewModel
+    {
+        public int ID { get; set; }
+        public string Description { get; set; }
+
+        [Display(Name = "Created Date")]
+        [DataType(DataType.Date)]
+        [DisplayFormat(DataFormatString = "{0:yyyy-MM-dd}", ApplyFormatInEditMode = true)]
+        public DateTime CreatedDate { get; set; }
+
+        [Display(Name = "Upload Pic")]
+        public string UploadPicUrl { get; set; }
     }
 }
 

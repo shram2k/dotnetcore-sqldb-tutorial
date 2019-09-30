@@ -7,15 +7,39 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using DotNetCoreSqlDb.Models;
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+using System.Threading.Tasks;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
+
+
 namespace DotNetCoreSqlDb.Controllers
 {
     public class TodosController : Controller
     {
         private readonly MyDatabaseContext _context;
-
-        public TodosController(MyDatabaseContext context)
+        private readonly IConfiguration _configuration;
+        private readonly IConfigurationSection _azureSection;
+        private readonly string _baseUri;
+        private readonly CloudBlobContainer _container;
+        public TodosController(MyDatabaseContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
+            _azureSection = _configuration.GetSection("Azure:Storage");
+            _baseUri = _azureSection.GetValue<string>("BaseUri");
+
+            CloudStorageAccount storageAccount = new CloudStorageAccount(
+                        new Microsoft.WindowsAzure.Storage.Auth.StorageCredentials(
+                        _azureSection.GetValue<string>("AccountName"),
+                        _azureSection.GetValue<string>("Key")), true);
+
+            // Create a blob client.
+            CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+            // Get a reference to a container named "mycontainer."
+            _container = blobClient.GetContainerReference("images");
+           
         }
 
         // GET: Todos
@@ -39,7 +63,22 @@ namespace DotNetCoreSqlDb.Controllers
                 return NotFound();
             }
 
-            return View(todo);
+
+           var signature =  _container.GetSharedAccessSignature(new SharedAccessBlobPolicy
+            {
+                Permissions = SharedAccessBlobPermissions.Read,
+                SharedAccessStartTime = DateTime.UtcNow.AddMinutes(-15),
+                SharedAccessExpiryTime = DateTime.UtcNow.AddMinutes(15)
+            });
+
+
+            return View(new TodoViewModel
+            {
+                ID = todo.ID,
+                CreatedDate = todo.CreatedDate,
+                Description = todo.Description,
+                UploadPicUrl = todo.UploadedImageId != null ? $"{_baseUri}images/{todo.UploadedImageId}{signature}" : string.Empty
+            });
         }
 
         // GET: Todos/Create
@@ -57,11 +96,32 @@ namespace DotNetCoreSqlDb.Controllers
         {
             if (ModelState.IsValid)
             {
+
+
+                await _container.CreateIfNotExistsAsync();
+                //To make the files within the container available to everyone, set the container to be public:
+                //await container.SetPermissionsAsync(new BlobContainerPermissions
+                //{
+                //    PublicAccess = BlobContainerPublicAccessType.Blob
+                //});
+
+                // Get a reference to a blob named "myblob".
+                var imageId = Guid.NewGuid().ToString();
+                CloudBlockBlob blockBlob = _container.GetBlockBlobReference(imageId);
+                // Create or overwrite the "myblob" blob with the contents of a local file
+                // named "myfile".
+                using (var fileStream = todo.UploadPic.OpenReadStream())
+                {
+                    await blockBlob.UploadFromStreamAsync(fileStream);
+                }
+
+
                 _context.Add(new Todo
                 {
                     Description= todo.Description,
                     CreatedDate = todo.CreatedDate,
-                    ID = todo.ID
+                    ID = todo.ID,
+                    UploadedImageId= imageId
                 });
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
